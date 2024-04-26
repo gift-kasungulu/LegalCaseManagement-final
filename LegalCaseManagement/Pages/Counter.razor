@@ -1,0 +1,145 @@
+﻿@page "/counter"
+@attribute [Authorize(Roles = "Admin")]
+
+<PageTitle>Counter</PageTitle>
+
+@using LegalCaseManagement.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using System.Security.Claims
+@inject IJSRuntime jstRuntime
+@inject UserManager<IdentityUser> _userManager
+@inject SignInManager<IdentityUser> _signInManager
+
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card card-primary">
+            <div class="card-header">
+                <h3 class="card-title">Add New User</h3>
+            </div>
+
+            <EditForm Model="newUser" OnValidSubmit="AddNewUserWithRoles">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="row">
+                    <div class="col">
+                        <label for="email" class="form-label">Email</label>
+                        <InputText type="email" class="form-control" id="exampleInputEmail1" placeholder="Enter Email Adress" @bind-Value="newUser.LoginName"></InputText>
+                    </div>
+                    <div class="col">
+                        <label for="password" class="form-label">Password</label>
+                        <InputText type="password" class="form-control" id="exampleInputPassword1" placeholder="Enter Password"  @bind-Value="newUser.LoginPassword"></InputText>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label class="form-label">Role</label>
+                        <InputSelect class="form-control" @bind-Value="newUser.UserRole" placeholder="Select Role">
+                            @foreach (var role in selectList)
+                            {
+                                <option value="@role.Value" selected="@role.Selected">@role.Text</option>
+
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col">
+                        <label class="form-label">Phone Number</label>
+                        <input class="form-control" placeholder="Enter Phone Number" @bind-value="newUser.Phone" ></input>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+
+
+@code {
+    User newUser = new User();
+    List<Role> rolesList = new List<Role>();
+    List<SelectListItem> selectList = new List<SelectListItem>();
+    // List<IdentityUser> userList = new List<IdentityUser>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        rolesList = new List<Role>()
+        {
+            new Role(){RoleName = "Admin", ID = "1"},
+            new Role(){RoleName = "Team", ID = "2"},
+            new Role(){RoleName = "Client", ID = "3"}
+        };
+
+        // userList = _userManager.Users.ToList();
+        foreach (var role in rolesList)
+        {
+            if (rolesList.Count < 1)
+            {
+                selectList.Add(new SelectListItem()
+                    {
+                        Text = role.RoleName,
+                        Value = role.ID,
+                        Selected = true
+
+                    });
+            }
+            else
+            {
+                selectList.Add(new SelectListItem()
+                    {
+                        Text = role.RoleName,
+                        Value = role.ID,
+                        Selected = false
+
+                    });
+            }
+        }
+
+    }
+
+    public async void AddNewUserWithRoles(EditContext context)
+    {
+        var usermodel = context.Model as User;
+
+        var passwordHash = _userManager.PasswordHasher.HashPassword(null, usermodel.LoginPassword);
+
+        var user = new IdentityUser
+            {
+                UserName = usermodel.LoginName,
+                Email = usermodel.LoginName,
+                EmailConfirmed = true,
+                PhoneNumber = usermodel.Phone,
+                PasswordHash = passwordHash
+                
+            };
+
+        try
+        {
+            var result = await _userManager.CreateAsync(user, usermodel.LoginPassword);
+
+            if (result.Succeeded)
+            {
+                var getRoleFromList = rolesList.FirstOrDefault(x => x.ID == usermodel?.UserRole);
+                var roleAddedResult = await _userManager.AddToRoleAsync(user, getRoleFromList?.RoleName ?? "Client");
+
+                if (roleAddedResult.Succeeded)
+                {
+                    await jstRuntime.InvokeVoidAsync("alert", "User was Added successfully. Role was Added too");
+                    return;
+                }
+            }
+
+            await jstRuntime.InvokeVoidAsync("alert", "User creation failed. Please check the input data.");
+        }
+        catch (Exception ex)
+        {
+            await jstRuntime.InvokeVoidAsync("console.error", ex.Message);
+            await jstRuntime.InvokeVoidAsync("alert", "An error occurred during user creation. Please try again later.");
+        }
+    }
+
+
+}
